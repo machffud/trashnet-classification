@@ -33,6 +33,8 @@ jobs:
           pip install wandb -qU
           mkdir -p results
           python3 trashnet_training_modeling.py
+        env:
+          WANDBTOKEN: ${{ vars.WANDBTOKEN }}
 
 
           
