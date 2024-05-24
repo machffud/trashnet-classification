@@ -14,14 +14,10 @@ by Machffud Tra H. V (machffud.tra@ui.ac.id)
 # from google.colab import drive
 # drive.mount('/content/drive')
 
-!pip install datasets
+
 
 """## Setup & Helpers"""
 
-!pip install -Uq fastai einops ml_collections
-!pip install wandb -qU
-
-!nvidia-smi
 
 import os
 import glob
@@ -146,7 +142,7 @@ save_dataset(dataset_dict['test'], 'test')
 
 print("Dataset has been split and saved successfully.")
 
-!find data -maxdepth 2 -type d -ls
+
 
 """Set up transforms and augmentations. As default, we will use Imagenet mean/std.dev (arbitrary choice, we can also use `[0.5, 0.5, 0.5]`) to normalize our images. To enhance robustness and prevent overfitting, we use the following augmentations:
 1. Random Resize Then Crop - preserving the image size 224x224 and to capture smaller or sections of the image
@@ -373,7 +369,7 @@ assess_test_performance_with_tta(learner_resnet34, tdl, dls.vocab)
 
 """## Analysis"""
 
-!mkdir -p results
+
 
 def evaluate(learner, dl=tdl, vocab=dls.vocab):
     name = type(learner.model).__name__
