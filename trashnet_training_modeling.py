@@ -19,12 +19,14 @@ by Machffud Tra H. V (machffud.tra@ui.ac.id)
 """## Setup & Helpers"""
 
 !pip install -Uq fastai einops ml_collections
+!pip install wandb -qU
 
 !nvidia-smi
 
 import os
 import glob
 import functools
+import wandb
 
 from ml_collections import config_dict
 
@@ -41,12 +43,16 @@ from sklearn.metrics import classification_report, accuracy_score
 
 """**IMPORTANT**: Adjust training configuration and seed below:"""
 
+wandb.login()
+
 cfg = config_dict.ConfigDict()
 cfg.use_augmentations = True
 cfg.do_export_clf_results = True
 cfg.bs = 64
 cfg.data_path = "data"
-
+wandb.init(project="trashnet-classification",
+        config={key:cfg[key] for key in cfg},
+        )
 # To ensure reproducibility
 # Huge variance can occur (between seeds) due to
 # random validation splits and the stochastic nature of the training
@@ -56,10 +62,12 @@ set_seed(18264)
 def assess_test_performance(learner, tdl, vocab):
     preds = learner.get_preds(dl=tdl, with_decoded=True)
     print(classification_report(*preds[1:], digits=4, target_names=vocab))
+    wandb.log({"classification report":classification_report(*preds[1:], digits=4, target_names=vocab)})
 
 def assess_test_performance_with_tta(learner, tdl, vocab):
     preds = learner.tta(dl=tdl)
     print(classification_report(preds[1], preds[0].argmax(1), digits=4, target_names=vocab))
+    wandb.log({"classification report with tta":classification_report(preds[1], preds[0].argmax(1), digits=4, target_names=vocab)})
 
 def get_validation_performance(learner, dls):
     """Returns accuracy for valid set"""
@@ -156,8 +164,12 @@ batch_tfms = [Normalize.from_stats(*imagenet_stats)] # Just normalize to imagene
 dls = ImageDataLoaders.from_folder(cfg.data_path, bs=cfg.bs, valid_pct=0.2, item_tfms=item_tfms, batch_tfms=batch_tfms)
 dls.show_batch() # should show the effect of RandAugment
 
+wandb.Table(dls.show_batch())
+
 tdl = dls.test_dl(get_image_files(Path(cfg.data_path)/"test"), with_labels=True)
-tdl.show_batch() # should not show RandAugment
+wandb.Table(tdl.show_batch()) # should not show RandAugment
+
+
 
 """## Modeling
 
@@ -192,7 +204,9 @@ def start_train(learner, epochs=[24, 24, 12], tdl=tdl):
     def get_lr_():
         lr = learner.lr_find()
         plt.show()
+        wandb.log({"best lr":plt.show()})
         print("Fit LR:", lr)
+        wandb.log({"Fit LR":lr})
         return lr
 
     name = type(learner.model).__name__
@@ -308,10 +322,10 @@ class ResNet(nn.Module):
     ) -> nn.Sequential:
         downsample = None
         if stride != 1 or self.inplanes != planes:
-        downsample = nn.Sequential(
-            nn.Conv2d(self.inplanes, planes, 1, stride, bias=False),
-            nn.BatchNorm2d(planes),
-        )
+                downsample = nn.Sequential(
+                    nn.Conv2d(self.inplanes, planes, 1, stride, bias=False),
+                    nn.BatchNorm2d(planes),
+                )
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample))
@@ -346,7 +360,11 @@ learner_resnet34 = Learner(dls, resnet34, metrics=[accuracy, F1Score(average="ma
 
 """As can be seen from the model summary below, the inputs to the ResNet blocks are downsampled 4x from 224x224 to 56x56 by the `stem` (`Conv2d(7, stride=2, padding=3)` and `MaxPool2d(3, stride=2, padding=1)`)."""
 
+wandb.watch(learner_resnet34.model)
+
 learner_resnet34.summary()
+
+wandb.log({"Summary learner":learner_resnet34.summary()})
 
 start_train(learner_resnet34)
 
@@ -363,8 +381,9 @@ def evaluate(learner, dl=tdl, vocab=dls.vocab):
     preds = learner.get_preds(dl=dl, with_decoded=True)
 
     print(classification_report(*preds[1:], digits=4, target_names=vocab))
-    interp.plot_confusion_matrix(figsize=(10, 10))
-    interp.plot_top_losses(k=25, figsize=(15, 15))
+
+    wandb.Table(interp.plot_confusion_matrix(figsize=(10, 10)))
+    wandb.Table(interp.plot_top_losses(k=25, figsize=(15, 15)))
 
     # generate and output classification report
 
@@ -380,3 +399,11 @@ def evaluate(learner, dl=tdl, vocab=dls.vocab):
 """### Evaluation"""
 
 evaluate(learner_resnet34)
+
+"""Berdasarkan hasil evaluasi ini, kemampuan model memprediksi label 0 hanya salah 1 secara keseluruhan. Artinya hanya sedikit saja sampah dengan label 0 yang tidak terdeteksi.
+Di lain sisi, kemampuan model memprediksi sampah dengan label 5 cukup buruk, yang mana nilai precisionnya sampai menyentuh 60an. Isu ini kemungkinan besar dikarenakan data yang cukup sedikit pada jenis sampah ini dalam pelatihan.
+
+Kemudian, pada contoh kesalahan prediksi di atas, ada prediksi yang tertukar antara sampah label 5 dan 3. Yang mana label 3 diprediksi sebagai label 5 dan sebaliknya (citra baris 3 kolom 4 dan baris 4 kolom 1). Jenis sampah ini jika dilihat secara seksama memanglah sangat mirip baik dari segi bentuk maupun warna. Hal inilah yang menjadi alasan lain buruknya performa prediksi label 5.
+"""
+
+wandb.finish()
