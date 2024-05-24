@@ -27,7 +27,12 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Run a one-line script
-        run: python3 trashnet_training_modeling.py
+        run: |
+          pip install datasets
+          pip install -Uq fastai einops ml_collections
+          pip install wandb -qU
+          mkdir -p results
+          python3 trashnet_training_modeling.py
 
 
           
