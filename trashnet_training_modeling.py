@@ -39,7 +39,7 @@ from sklearn.metrics import classification_report, accuracy_score
 
 """**IMPORTANT**: Adjust training configuration and seed below:"""
 
-wandb.login()
+wandb.login(key = os.getenv('WANDBTOKEN'))
 
 cfg = config_dict.ConfigDict()
 cfg.use_augmentations = True
